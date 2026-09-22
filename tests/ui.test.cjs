@@ -1,0 +1,17 @@
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});let errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:8765');
+await page.locator('[data-action="newParty"]').first().click();await page.locator('[name="name"]').fill('जाँच पार्टी');await page.locator('[name="mobile"]').fill('9876543210');await page.locator('[name="opening"]').fill('100');await page.locator('#partyForm [type="submit"]').click();
+await page.locator('[data-action="entry"]').click();await page.locator('[name="amount"]').fill('25.50');await page.locator('[data-type="JAMA"]').click();await page.locator('#entryForm [type="submit"]').click();await page.locator('#modalRoot [data-action="profile"]').click();
+assert.equal(await page.evaluate(()=>balance(partyId)),7450);
+await page.locator('[data-action="detail"]').last().click();await page.locator('[data-action="reverseForm"]').click();await page.locator('[name="reason"]').fill('गलत रकम');await page.locator('#reverseForm [type="submit"]').click();assert.equal(await page.evaluate(()=>balance(partyId)),10000);
+await page.locator('[data-filter="today"]').click();await page.locator('#ledgerSearch').fill('गलत रकम');assert.equal(await page.locator('#ledgerTable tbody tr').count(),3);
+await page.locator('[data-action="pin"]').click();assert.equal(await page.evaluate(()=>party(partyId).pinned),1);
+await page.reload();assert.equal(await page.evaluate(()=>data.entries.length),3);
+assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+await page.locator('.bottomnav [data-page="parties"]').click();await page.locator('#partySearch').fill('987654');assert.equal(await page.locator('.partycard').count(),1);
+await page.locator('.bottomnav [data-page="settings"]').click();await page.locator('#themeSelect').selectOption('dark');assert(await page.locator('body').evaluate(e=>e.classList.contains('dark')));
+await page.locator('.bottomnav [data-page="home"]').click();await page.screenshot({path:require('node:path').join(__dirname,'mobile-dark.png'),fullPage:true});
+await page.evaluate(()=>{localStorage.removeItem('hisaab-preview');setTheme('light');refresh();demo();});await page.screenshot({path:require('node:path').join(__dirname,'mobile-light.png'),fullPage:true});
+await page.setViewportSize({width:1365,height:1000});await page.screenshot({path:require('node:path').join(__dirname,'desktop.png'),fullPage:true});
+assert.deepEqual(errors,[]);console.log('PASS UI: party, entry, exact balance, reversal, filter/search, pin, persistence, phone search, dark mode, responsive width; no runtime errors');await browser.close();})();

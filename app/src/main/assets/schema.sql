@@ -1,0 +1,12 @@
+PRAGMA foreign_keys=ON;
+CREATE TABLE party(id TEXT PRIMARY KEY, name TEXT NOT NULL, mobile TEXT NOT NULL, notes TEXT NOT NULL, active INTEGER NOT NULL CHECK(active IN(0,1)), pinned INTEGER NOT NULL CHECK(pinned IN(0,1)), created TEXT NOT NULL, updated TEXT NOT NULL);
+CREATE TABLE entry(id TEXT PRIMARY KEY, party TEXT NOT NULL REFERENCES party(id), date TEXT NOT NULL, amount INTEGER NOT NULL CHECK(amount>0 AND amount<=100000000000), type TEXT NOT NULL CHECK(type IN('JAMA','BAAKI')), kind TEXT NOT NULL CHECK(kind IN('ENTRY','OPENING','SETTLEMENT','ADJUSTMENT','REVERSAL')), description TEXT NOT NULL, mode TEXT NOT NULL, reference TEXT NOT NULL, notes TEXT NOT NULL, actor TEXT NOT NULL, created TEXT NOT NULL, updated TEXT NOT NULL, reverses TEXT UNIQUE REFERENCES entry(id));
+CREATE INDEX entry_party_date ON entry(party,date,created,id);
+CREATE TABLE audit(id TEXT PRIMARY KEY, action TEXT NOT NULL, entity TEXT NOT NULL, detail TEXT NOT NULL, actor TEXT NOT NULL, created TEXT NOT NULL);
+CREATE TRIGGER entry_no_update BEFORE UPDATE ON entry BEGIN SELECT RAISE(ABORT,'Financial entries are immutable; reverse instead'); END;
+CREATE TRIGGER entry_no_delete BEFORE DELETE ON entry BEGIN SELECT RAISE(ABORT,'Financial entries cannot be deleted'); END;
+CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT,'Audit is immutable'); END;
+CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT,'Audit is immutable'); END;
+CREATE TRIGGER entry_reversal BEFORE INSERT ON entry WHEN NEW.reverses IS NOT NULL BEGIN SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM entry WHERE id=NEW.reverses AND party=NEW.party AND amount=NEW.amount AND type<>NEW.type AND kind<>'REVERSAL') OR NEW.kind<>'REVERSAL' THEN RAISE(ABORT,'Invalid reversal') END; END;
+CREATE VIEW posting AS SELECT id AS journal_id, 'PARTY:'||party AS account, CASE WHEN type='BAAKI' THEN amount ELSE -amount END AS signed_paise FROM entry UNION ALL SELECT id, CASE WHEN kind='OPENING' OR (kind='REVERSAL' AND (SELECT kind FROM entry original WHERE original.id=entry.reverses)='OPENING') THEN 'OPENING_EQUITY' ELSE 'LEDGER_CLEARING' END, CASE WHEN type='JAMA' THEN amount ELSE -amount END FROM entry;
+CREATE TRIGGER entry_safe_total BEFORE INSERT ON entry BEGIN SELECT CASE WHEN COALESCE((SELECT SUM(amount) FROM entry),0)>9000000000000000-NEW.amount THEN RAISE(ABORT,'Ledger total exceeds supported precision') END; END;
